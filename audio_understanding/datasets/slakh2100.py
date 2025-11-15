@@ -16,6 +16,7 @@ from audidata.transforms.audio import Mono
 from audidata.transforms.midi import PianoRoll, MultiTrackPianoRoll
 from audidata.io.midi import read_single_track_midi, read_midi_beat
 from audidata.collate.base import collate_list_fn
+from audidata.utils import call
 
 from typing_extensions import Literal
 import random
@@ -67,9 +68,7 @@ class Slakh2100(Dataset):
         transform: Optional[callable] = Mono(),
         load_target: bool = True,
         extend_pedal: bool = True,
-        target_transform: Optional[callable] = PianoRoll(
-            fps=100, pitches_num=128
-        ),
+        target_transform: Optional[callable] = PianoRoll(fps=100, pitches_num=128),
     ):
 
         self.root = root
@@ -240,6 +239,6 @@ class Slakh2100(Dataset):
             data["tracks"].append(track)
 
         if self.target_transform:
-            data = self.target_transform(data)
+            data = call(transform=self.target_transform, x=data)
 
         return data
