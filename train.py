@@ -23,7 +23,7 @@ def train(args) -> None:
     wandb_log = not args.no_log
     config_path = args.config
     filename = Path(__file__).stem
-    
+
     # Configs
     configs = parse_yaml(config_path)
     device = configs["train"]["device"]
@@ -42,39 +42,35 @@ def train(args) -> None:
 
     # Dataloader
     train_dataloader = DataLoader(
-        dataset=train_dataset, 
-        batch_size=configs["train"]["batch_size_per_device"], 
+        dataset=train_dataset,
+        batch_size=configs["train"]["batch_size_per_device"],
         sampler=train_sampler,
-        num_workers=configs["train"]["num_workers"], 
+        num_workers=configs["train"]["num_workers"],
         collate_fn=collate_fn,
-        pin_memory=True
+        pin_memory=True,
     )
 
     # Audio encoder
     audio_encoder = get_audio_encoder(
-        configs=configs, 
-        ckpt_path=configs["train"]["resume_ckpt_path"]
+        configs=configs, ckpt_path=configs["train"]["resume_ckpt_path"]
     ).to(device)
-    
+
     # Tokenizer for converting text into IDs and vice versa
     tokenizer = get_tokenizer(configs=configs)
-    
+
     # LLM decoder
     llm = get_llm(
-        configs=configs, 
-        audio_latent_dim=audio_encoder.latent_dim, 
+        configs=configs,
+        audio_latent_dim=audio_encoder.latent_dim,
         vocab_size=len(tokenizer),
-        ckpt_path=configs["train"]["resume_ckpt_path"]
+        ckpt_path=configs["train"]["resume_ckpt_path"],
     ).to(device)
 
     # Learnable parameters
     params = get_learnable_params(configs, audio_encoder, llm)
-    
+
     # Optimizer
-    optimizer, scheduler = get_optimizer_and_scheduler(
-        configs=configs, 
-        params=params
-    )
+    optimizer, scheduler = get_optimizer_and_scheduler(configs=configs, params=params)
 
     # Logger
     if wandb_log:
@@ -90,25 +86,28 @@ def train(args) -> None:
 
         # 1.2 Encode audio into latent
         audio = audio.to(device)
-        audio_latent = audio_encoder.encode(audio=audio, train_mode=True)  # shape: (b, t, d)
+        audio_latent = audio_encoder.encode(
+            audio=audio, train_mode=True
+        )  # shape: (b, t, d)
 
         # 1.3 Tokenize question text to IDs
         question_ids = tokenizer.texts_to_ids(
-            texts=question, 
-            fix_length=configs["max_question_len"]
-        ).to(device)  # shape: (b, t)
+            texts=question, fix_length=configs["max_question_len"]
+        ).to(
+            device
+        )  # shape: (b, t)
 
         # 1.4 Tokenize answering text to IDs
         answering_ids = tokenizer.texts_to_ids(
-            texts=answering, 
-            fix_length=configs["max_answering_len"]
-        ).to(device)  # shape: (b, t)
+            texts=answering, fix_length=configs["max_answering_len"]
+        ).to(
+            device
+        )  # shape: (b, t)
 
         # 1.5 Remove padded columns to speed up training
         if configs["train"]["remove_padded_columns"]:
             answering_ids = remove_padded_columns(
-                ids=answering_ids, 
-                pad_token_id=tokenizer.pad_token_id
+                ids=answering_ids, pad_token_id=tokenizer.pad_token_id
             )
 
         # 1.6 Prepare inputs
@@ -119,24 +118,20 @@ def train(args) -> None:
         # ------ 2. Training ------
         # 2.1 Forward
         llm.train()
-        output_seqs = llm(
-            seqs=seqs,
-            seq_types=seq_types,
-            mask=None
-        )  # list
+        output_seqs = llm(seqs=seqs, seq_types=seq_types, mask=None)  # list
 
         # 2.2 Prepare data for next ID prediction
-        output_seqs = [seq[:, 0 : -1] for seq in output_seqs]
-        target_seqs = [seq[:, 1 :] for seq in seqs]
-        
+        output_seqs = [seq[:, 0:-1] for seq in output_seqs]
+        target_seqs = [seq[:, 1:] for seq in seqs]
+
         # 2.3 Loss
         loss = ce_loss(
-            output_seqs=output_seqs, 
-            target_seqs=target_seqs, 
+            output_seqs=output_seqs,
+            target_seqs=target_seqs,
             loss_types=loss_types,
-            ignore_index=tokenizer.pad_token_id
+            ignore_index=tokenizer.pad_token_id,
         )
-        
+
         # 2.4 Optimize
         optimizer.zero_grad()  # Reset all parameter.grad to 0
         loss.backward()  # Update all parameter.grad
@@ -148,45 +143,44 @@ def train(args) -> None:
 
         if step % 100 == 0:
             print(loss)
-        
+
         # ------ 3. Evaluation ------
         # 3.1 Evaluate
         if step % configs["train"]["test_every_n_steps"] == 0:
 
             train_loss = validate(
                 configs=configs,
-                dataset=train_dataset, 
+                dataset=train_dataset,
                 audio_encoder=audio_encoder,
-                tokenizer=tokenizer, 
-                llm=llm
+                tokenizer=tokenizer,
+                llm=llm,
             )
 
             test_loss = validate(
                 configs=configs,
-                dataset=test_dataset, 
+                dataset=test_dataset,
                 audio_encoder=audio_encoder,
-                tokenizer=tokenizer, 
-                llm=llm
+                tokenizer=tokenizer,
+                llm=llm,
             )
 
             if wandb_log:
                 wandb.log(
-                    data={"train_loss": train_loss, "test_loss": test_loss},
-                    step=step
+                    data={"train_loss": train_loss, "test_loss": test_loss}, step=step
                 )
 
             print("Train loss: {}".format(train_loss))
             print("Test loss: {}".format(test_loss))
-        
+
         # 3.2 Save model
         if step % configs["train"]["save_every_n_steps"] == 0:
-            
+
             ckpt_path = Path(ckpts_dir, "step={}.pth".format(step))
             ckpt = {}
-            
+
             if configs["audio_encoder"]["trainable"]:
                 ckpt["audio_encoder"] = audio_encoder.state_dict()
-            
+
             if configs["llm"]["trainable"]:
                 ckpt["llm"] = llm.state_dict()
 
@@ -195,12 +189,9 @@ def train(args) -> None:
 
         if step == configs["train"]["training_steps"]:
             break
-        
-        
-def get_dataset(
-    configs: dict, 
-    split: str
-) -> Dataset:
+
+
+def get_dataset(configs: dict, split: str) -> Dataset:
     r"""Get datasets."""
 
     from audidata.io.crops import RandomCrop, StartCrop
@@ -211,9 +202,9 @@ def get_dataset(
     datasets_split = "{}_datasets".format(split)
 
     datasets = []
-    
+
     for name in configs[datasets_split].keys():
-    
+
         if name == "GTZAN":
 
             from audio_understanding.datasets.gtzan import GTZAN
@@ -222,7 +213,7 @@ def get_dataset(
                 root=configs[datasets_split][name]["root"],
                 split=configs[datasets_split][name]["split"],
                 sr=sr,
-                crop=RandomCrop(clip_duration=clip_duration), 
+                crop=RandomCrop(clip_duration=clip_duration),
                 transform=Mono(),
             )
             datasets.append(dataset)
@@ -235,8 +226,8 @@ def get_dataset(
                 root=configs[datasets_split][name]["root"],
                 split=configs[datasets_split][name]["split"],
                 sr=sr,
-                crop=StartCrop(clip_duration=clip_duration), 
-                transform=[Mono(), TimeShift(sr=sr, shift=(0., 0.5))],
+                crop=StartCrop(clip_duration=clip_duration),
+                transform=[Mono(), TimeShift(sr=sr, shift=(0.0, 0.5))],
             )
             datasets.append(dataset)
 
@@ -249,8 +240,8 @@ def get_dataset(
                 split=configs[datasets_split][name]["split"],
                 sr=sr,
                 crop=StartCrop(clip_duration=clip_duration),
-                transform=[Mono(), TimeShift(sr=sr, shift=(0., 0.5))],
-                target_transform=TextNormalization()
+                transform=[Mono(), TimeShift(sr=sr, shift=(0.0, 0.5))],
+                target_transform=TextNormalization(),
             )
             datasets.append(dataset)
 
@@ -270,7 +261,9 @@ def get_dataset(
                 root=configs[datasets_split][name]["root"],
                 split=configs[datasets_split][name]["split"],
                 sr=sr,
-                crop=RandomCrop(clip_duration=clip_duration, end_pad=clip_duration - 0.1),
+                crop=RandomCrop(
+                    clip_duration=clip_duration, end_pad=clip_duration - 0.1
+                ),
                 transform=Mono(),
                 load_target=True,
                 extend_pedal=True,
@@ -288,7 +281,7 @@ def get_dataset(
                 sr=sr,
                 crop=StartCrop(clip_duration=clip_duration),
                 transform=Mono(),
-                target_transform=TextNormalization()
+                target_transform=TextNormalization(),
             )
             datasets.append(dataset)
 
@@ -301,7 +294,7 @@ def get_dataset(
                 sr=sr,
                 crop=StartCrop(clip_duration=clip_duration),
                 transform=Mono(),
-                target_transform=TextNormalization()
+                target_transform=TextNormalization(),
             )
             datasets.append(dataset)
 
@@ -324,15 +317,19 @@ def get_audio_encoder(configs: dict, ckpt_path: str) -> nn.Module:
 
     if name == "Whisper":
         from audio_understanding.audio_encoders.whisper import Whisper
+
         model = Whisper(sr=sr, trainable=trainable)
 
     elif name == "PianoTranscriptionCRnn":
-        from audio_understanding.audio_encoders.piano_transcription_crnn import \
-            PianoTranscriptionCRnn
+        from audio_understanding.audio_encoders.piano_transcription_crnn import (
+            PianoTranscriptionCRnn,
+        )
+
         model = PianoTranscriptionCRnn(sr=sr, trainable=trainable)
 
     elif name == "PannsCnn14":
         from audio_understanding.audio_encoders.panns import PannsCnn14
+
         model = PannsCnn14(sr=sr, trainable=trainable)
 
     else:
@@ -352,10 +349,12 @@ def get_tokenizer(configs: dict) -> nn.Module:
 
     if name == "Bert":
         from audio_understanding.tokenizers.bert import Bert
+
         tokenizer = Bert()
 
     elif name == "BertMIDI":
         from audio_understanding.tokenizers.bert_midi import BertMIDI
+
         tokenizer = BertMIDI()
 
     else:
@@ -365,10 +364,7 @@ def get_tokenizer(configs: dict) -> nn.Module:
 
 
 def get_llm(
-    configs: dict, 
-    audio_latent_dim: int, 
-    vocab_size: int, 
-    ckpt_path: str
+    configs: dict, audio_latent_dim: int, vocab_size: int, ckpt_path: str
 ) -> nn.Module:
     r"""Initialize LLM decoder."""
 
@@ -385,16 +381,16 @@ def get_llm(
 
         config = LlamaConfig(
             block_size=block_size,
-            audio_latent_dim=audio_latent_dim, 
+            audio_latent_dim=audio_latent_dim,
             vocab_size=vocab_size,
             n_layer=n_layer,
             n_head=n_head,
-            n_embd=n_embd
+            n_embd=n_embd,
         )
         model = Llama(config=config)
 
     else:
-        raise ValueError(name)    
+        raise ValueError(name)
 
     if ckpt_path and configs["llm"]["trainable"]:
         ckpt = torch.load(ckpt_path)
@@ -404,9 +400,7 @@ def get_llm(
 
 
 def get_learnable_params(
-    configs: dict, 
-    audio_encoder: nn.Module, 
-    llm: nn.Module
+    configs: dict, audio_encoder: nn.Module, llm: nn.Module
 ) -> list:
 
     params = []
@@ -421,8 +415,7 @@ def get_learnable_params(
 
 
 def get_optimizer_and_scheduler(
-    configs: dict, 
-    params: list[torch.Tensor]
+    configs: dict, params: list[torch.Tensor]
 ) -> tuple[optim.Optimizer, None | optim.lr_scheduler.LambdaLR]:
     r"""Get optimizer and scheduler."""
 
@@ -435,17 +428,19 @@ def get_optimizer_and_scheduler(
 
     if warm_up_steps:
         lr_lambda = LinearWarmUp(warm_up_steps)
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=lr_lambda)
+        scheduler = optim.lr_scheduler.LambdaLR(
+            optimizer=optimizer, lr_lambda=lr_lambda
+        )
     else:
         scheduler = None
 
     return optimizer, scheduler
-        
+
 
 def get_audio_question_answering(
-    data: dict
+    data: dict,
 ) -> tuple[torch.Tensor, list[str], list[str]]:
-    r"""Process data to audio, question, and answering according to different 
+    r"""Process data to audio, question, and answering according to different
     datasets.
 
     Returns:
@@ -470,14 +465,14 @@ def get_audio_question_answering(
 
 
 def ce_loss(
-    output_seqs: list[torch.Tensor], 
+    output_seqs: list[torch.Tensor],
     target_seqs: list[torch.Tensor],
     loss_types: list[callable],
-    ignore_index: int
+    ignore_index: int,
 ) -> torch.float:
     r"""Calculate loss."""
 
-    total_loss = 0.
+    total_loss = 0.0
 
     for i in range(len(output_seqs)):
 
@@ -488,7 +483,7 @@ def ce_loss(
             total_loss += F.cross_entropy(
                 input=output_seqs[i].flatten(0, 1),  # shape: (b*t, vocab_size)
                 target=target_seqs[i].flatten(0, 1),  # shape: (b*t,)
-                ignore_index=-1
+                ignore_index=-1,
             )
 
         else:
@@ -500,10 +495,10 @@ def ce_loss(
 def validate(
     configs: dict,
     dataset: Dataset,
-    audio_encoder: nn.Module, 
+    audio_encoder: nn.Module,
     tokenizer: object,
     llm: nn.Module,
-    valid_steps=50
+    valid_steps=50,
 ) -> float:
     r"""Validate the model on part of data."""
 
@@ -527,25 +522,28 @@ def validate(
 
         # 1.3 Tokenize question text to IDs
         audio = audio.to(device)
-        audio_latent = audio_encoder.encode(audio=audio, train_mode=False)  # shape: (b, t, d)
+        audio_latent = audio_encoder.encode(
+            audio=audio, train_mode=False
+        )  # shape: (b, t, d)
 
         # 1.4 Tokenize answering text to IDs
         question_ids = tokenizer.texts_to_ids(
-            texts=question, 
-            fix_length=configs["max_question_len"]
-        ).to(device)  # shape: (b, t)
+            texts=question, fix_length=configs["max_question_len"]
+        ).to(
+            device
+        )  # shape: (b, t)
 
         # 1.5 Remove padded columns to speed up training
         answering_ids = tokenizer.texts_to_ids(
-            texts=answering, 
-            fix_length=configs["max_answering_len"]
-        ).to(device)  # shape: (b, t)
+            texts=answering, fix_length=configs["max_answering_len"]
+        ).to(
+            device
+        )  # shape: (b, t)
 
         # 1.6 Prepare inputs
         if configs["train"]["remove_padded_columns"]:
             answering_ids = remove_padded_columns(
-                ids=answering_ids, 
-                pad_token_id=tokenizer.pad_token_id
+                ids=answering_ids, pad_token_id=tokenizer.pad_token_id
             )
 
         # Prepare inputs
@@ -557,34 +555,33 @@ def validate(
         # 2.1 Forward
         with torch.no_grad():
             llm.eval()
-            output_seqs = llm(
-                seqs=seqs,
-                seq_types=seq_types,
-                mask=None
-            )  # list
+            output_seqs = llm(seqs=seqs, seq_types=seq_types, mask=None)  # list
 
         # 2.2 Prepare data for next ID prediction
-        output_seqs = [seq[:, 0 : -1] for seq in output_seqs]
-        target_seqs = [seq[:, 1 :] for seq in seqs]
-        
+        output_seqs = [seq[:, 0:-1] for seq in output_seqs]
+        target_seqs = [seq[:, 1:] for seq in seqs]
+
         # 2.3 Loss
         loss = ce_loss(
-            output_seqs=output_seqs, 
-            target_seqs=target_seqs, 
+            output_seqs=output_seqs,
+            target_seqs=target_seqs,
             loss_types=loss_types,
-            ignore_index=tokenizer.pad_token_id
+            ignore_index=tokenizer.pad_token_id,
         )
 
         losses.append(loss.item())
-        
+
     return np.mean(losses)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True, help="Path of config yaml.")
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path of config yaml."
+    )
     parser.add_argument("--no_log", action="store_true", default=False)
     args = parser.parse_args()
 
     train(args)
+
