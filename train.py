@@ -271,6 +271,38 @@ def get_dataset(configs: dict, split: str) -> Dataset:
             )
             datasets.append(dataset)
 
+        elif name == "Slakh2100":
+
+            from audidata.transforms.midi import MultiTrackPianoRoll
+
+            from audio_understanding.datasets.slakh2100 import Slakh2100
+            from audio_understanding.target_transforms.midi import MIDI2Tokens
+
+            if configs["midi_to_tokens"] == "MIDI2Tokens":
+                midi_transform = MIDI2Tokens(fps=configs["fps"])
+            else:
+                raise NotImplementedError
+
+            # this may be a source of bug, watch out
+            target_transform = [
+                MultiTrackPianoRoll(fps=configs["fps"], pitches_num=128),
+                midi_transform,
+            ]
+
+            dataset = Slakh2100(
+                root=configs[datasets_split][name]["root"],
+                split=configs[datasets_split][name]["split"],
+                sr=sr,
+                crop=RandomCrop(
+                    clip_duration=clip_duration, end_pad=clip_duration - 0.1
+                ),
+                transform=Mono(),
+                load_target=True,
+                extend_pedal=True,
+                target_transform=target_transform,
+            )
+            datasets.append(dataset)
+
         elif name == "AudioCaps":
 
             from audio_understanding.datasets.audiocaps import AudioCaps
