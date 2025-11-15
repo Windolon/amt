@@ -18,7 +18,7 @@ from audidata.io.midi import read_single_track_midi, read_midi_beat
 from audidata.collate.base import collate_list_fn
 
 from typing_extensions import Literal
-
+import random
 
 default_collate_fn_map.update({list: collate_list_fn})
 
@@ -181,14 +181,12 @@ class Slakh2100(Dataset):
             "Convert audio music into MIDI data format.",
             "Transcribe music recordings into MIDI note sequences.",
             "Automatically generate MIDI file from audio music.",
-            "Extract music elements and convert to MIDI notes."
+            "Extract music elements and convert to MIDI notes.",
         ]
 
         question = random.choice(questions)
 
-        data = {
-            "question": question
-        }
+        data = {"question": question}
         return data
 
     def load_target_data(
