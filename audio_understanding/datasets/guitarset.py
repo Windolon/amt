@@ -61,7 +61,7 @@ class GuitarSet(Dataset):
         full_data.update(audio_data)
 
     def __len__(self) -> int:
-        
+
         return len(self.meta_dict["audio_name"])
 
     # Other helper methods for constructing the three required methods above.
@@ -73,9 +73,9 @@ class GuitarSet(Dataset):
         # There is no built-in split in GuitarSet, so we are going to make our
         # own split. 00-04 will be train splits, and 05 will be test splits.
         if self.split == "test":
-            df = df[df["File Path"].startswith("05")]
+            df = df[str(df["File Path"]).startswith("05")]
         else:
-            df = df[not df["File Path"].startswith("05")]
+            df = df[not str(df["File Path"]).startswith("05")]
 
         audio_names = df["File Path"].values
         midi_names = df["Midi_file_path"].values
