@@ -6,6 +6,7 @@ from typing import Optional
 
 import librosa
 import pandas as pd
+import csv
 from audidata.io.audio import load
 from audidata.io.crops import RandomCrop
 from audidata.io.midi import read_single_track_midi, clip_notes
@@ -68,17 +69,24 @@ class GuitarSet(Dataset):
     def load_meta(self, meta_csv: str) -> dict:
 
         df = pd.read_csv(meta_csv, sep=",")
+        with open(meta_csv, mode="r") as file:
+            reader = csv.DictReader(file)
 
-        # We want to filter out all the data that is not under our split.
-        # There is no built-in split in GuitarSet, so we are going to make our
-        # own split. 00-04 will be train splits, and 05 will be test splits.
-        if self.split == "test":
-            df = df[str(df["File Path"]).startswith("05")]
-        else:
-            df = df[not str(df["File Path"]).startswith("05")]
+            audio_names = []
+            midi_names = []
 
-        audio_names = df["File Path"].values
-        midi_names = df["Midi_file_path"].values
+            # We want to filter out all the data that is not under our split.
+            # There is no built-in split in GuitarSet, so we are going to make our
+            # own split. 00-04 will be train splits, and 05 will be test splits.
+            for row in reader:
+                if self.split == "test":
+                    if row["File Path"].startswith("05"):
+                        audio_names.append(row["File Path"])
+                        midi_names.append(row["Midi_file_path"])
+                elif self.split == "train":
+                    if not row["File Path"].startswith("05"):
+                        audio_names.append(row["File Path"])
+                        midi_names.append(row["Midi_file_path"])
 
         audio_paths = [str(Path(self.root, "data", name)) for name in audio_names]
         midi_paths = [str(Path(self.root, "data", name)) for name in midi_names]
