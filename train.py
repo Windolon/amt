@@ -271,6 +271,32 @@ def get_dataset(configs: dict, split: str) -> Dataset:
             )
             datasets.append(dataset)
 
+        elif name == "GuitarSet":
+
+            from audidata.transforms.midi import PianoRoll
+
+            from audio_understanding.datasets.guitarset import GuitarSet
+            from audio_understanding.target_transforms.midi import MIDI2Tokens
+
+            if configs["midi_to_tokens"] == "MIDI2Tokens":
+                midi_transform = MIDI2Tokens(fps=configs["fps"])
+            else:
+                raise NotImplementedError
+
+            dataset = GuitarSet(
+                root=configs[datasets_split][name]["root"],
+                split=configs[datasets_split][name]["split"],
+                sr=sr,
+                crop=RandomCrop(
+                    clip_duration=clip_duration, end_pad=clip_duration - 0.1
+                ),
+                transform=Mono(),
+                load_target=True,
+                extend_pedal=True,
+                target_transform=[PianoRoll(fps=100, pitches_num=128), midi_transform],
+            )
+            datasets.append(dataset)
+
         elif name == "AudioCaps":
 
             from audio_understanding.datasets.audiocaps import AudioCaps
