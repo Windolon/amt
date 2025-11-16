@@ -68,7 +68,7 @@ class Slakh2100(Dataset):
         transform: Optional[callable] = Mono(),
         load_target: bool = True,
         extend_pedal: bool = True,
-        target_transform: Optional[callable] = PianoRoll(fps=100, pitches_num=128),
+        target_transform: Optional[callable] = MultiTrackPianoRoll(fps=100, pitches_num=128),
     ):
 
         self.root = root
@@ -239,6 +239,7 @@ class Slakh2100(Dataset):
             data["tracks"].append(track)
 
         if self.target_transform:
-            data = call(transform=self.target_transform, x=data)
+            for track in data["tracks"]:
+                track = call(transform=self.target_transform, x=track)
 
         return data

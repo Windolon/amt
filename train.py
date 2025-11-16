@@ -284,10 +284,10 @@ def get_dataset(configs: dict, split: str) -> Dataset:
                 raise NotImplementedError
 
             # this may be a source of bug, watch out
-            # target_transform = [
-            #     MultiTrackPianoRoll(fps=configs["fps"], pitches_num=128),
-            #     midi_transform,
-            # ]
+            target_transform = [
+                MultiTrackPianoRoll(fps=configs["fps"], pitches_num=128),
+                midi_transform,
+            ]
 
             dataset = Slakh2100(
                 root=configs[datasets_split][name]["root"],
@@ -299,7 +299,7 @@ def get_dataset(configs: dict, split: str) -> Dataset:
                 transform=Mono(),
                 load_target=True,
                 extend_pedal=True,
-                target_transform=[PianoRoll(fps=100, pitches_num=128), midi_transform],
+                target_transform=target_transform,
             )
             datasets.append(dataset)
 
