@@ -483,7 +483,7 @@ def get_audio_question_answering(
     elif name in ["AudioCaps", "Clotho", "LibriSpeech", "WavCaps"]:
         return data["audio"], data["question"], data["caption"]
 
-    elif name in ["MAESTRO"]:
+    elif name in ["MAESTRO", "GuitarSet"]:
         return data["audio"], data["question"], data["token"]
 
     else:
