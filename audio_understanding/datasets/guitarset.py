@@ -61,6 +61,19 @@ class GuitarSet(Dataset):
         audio_data = self.load_audio_data(path=audio_path)
         full_data.update(audio_data)
 
+        question_data = self.load_question_data()
+        full_data.update(question_data)
+
+        if self.load_target:
+            target_data = self.load_target_data(
+                midi_path=midi_path,
+                start_time=audio_data["start_time"],
+                duration=audio_data["duration"]
+            )
+            full_data.update(target_data)
+
+        return full_data
+
     def __len__(self) -> int:
 
         return len(self.meta_dict["audio_name"])
