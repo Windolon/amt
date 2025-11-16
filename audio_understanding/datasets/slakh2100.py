@@ -206,7 +206,7 @@ class Slakh2100(Dataset):
 
         data = {
             "start_time": start_time,
-            "clip_duration": clip_duration,
+            "duration": clip_duration,
             "beat": beats,
             "downbeat": downbeats,
             "tracks": [],
