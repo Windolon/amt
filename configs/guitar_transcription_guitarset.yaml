@@ -1,0 +1,49 @@
+---
+sample_rate: 16000
+clip_duration: 5.
+max_question_len: 50
+max_answering_len: 1000
+fps: 100
+
+train_datasets:
+    GuitarSet:
+        root: "./datasets/guitar_dataset"
+        split: "train"
+
+test_datasets:
+    GuitarSet:
+        root: "./datasets/guitar_dataset"
+        split: "test"
+
+midi_to_tokens: MIDI2Tokens
+        
+audio_encoder:
+    name: PianoTranscriptionCRnn
+    trainable: True
+
+tokenizer:
+    name: BertMIDI
+
+llm:
+    name: Llama
+    trainable: True
+    block_size: 2048  # Maximize block size
+    audio_latent_dim:  # Leave blank. Parsed later from audio_encoder
+    vocab_size:  # Leave blank. Parsed later from len(tokenier)
+    n_layer: 12
+    n_head: 12
+    n_embd: 768
+    
+train:
+    device: "cuda"
+    num_workers: 16
+    remove_padded_columns: True
+    loss: ce_loss
+    optimizer: AdamW
+    lr: 1e-4
+    warm_up_steps: 1000  # Leave blank if no warm up is used
+    batch_size_per_device: 4
+    test_every_n_steps: 1000
+    save_every_n_steps: 10000
+    training_steps: 100000
+    resume_ckpt_path:  # Leave blank if train from scratch
