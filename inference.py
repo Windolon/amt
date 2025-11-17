@@ -98,6 +98,9 @@ def get_top_k(config_yaml: str) -> int:
     elif Path(config_yaml).stem in ["piano_transcription_maestro"]:
         return 1
 
+    elif Path(config_yaml).stem in ["guitar_transcription_guitarset"]:
+        return 1
+
     elif Path(config_yaml).stem in ["audio_caption_clotho"]:
         return 100
 
@@ -119,6 +122,9 @@ def get_question(config_yaml: str) -> str:
     elif Path(config_yaml).stem in ["piano_transcription_maestro"]:
         return "Music transcription."
 
+    elif Path(config_yaml).stem in ["guitar_transcription_guitarset"]:
+        return "Music transcription."
+
     else:
         raise NotImplementedError("Users need to write a question!")
 
@@ -128,7 +134,7 @@ def convert_ids_to_texts(config_yaml: dict, tokenizer, answering_ids: list[int])
     if Path(config_yaml).stem in ["asr_librispeech", "audio_caption_clotho", "music_tagging_gtzan"]:
         return tokenizer.tok.decode(answering_ids, skip_special_tokens=True)
 
-    elif Path(config_yaml).stem in ["piano_transcription_maestro"]:
+    elif Path(config_yaml).stem in ["piano_transcription_maestro", "guitar_transcription_guitarset"]:
         tokens = tokenizer.tok.convert_ids_to_tokens(answering_ids)
         pickle.dump(tokens, open("tmp_tokens.pkl", "wb"))
 
